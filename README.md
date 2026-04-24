@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TFC Anvil Calculator
 
-## Getting Started
+A web tool that plans the sequence of anvil operations needed to forge any
+[TerraFirmaCraft](https://github.com/TerraFirmaCraft/TerraFirmaCraft) (TFC)
+or [TerraFirmaGreg-Modern](https://github.com/TerraFirmaGreg-Team/Modpack-Modern)
+(TFG) item. Plug in your world seed and the calculator will:
 
-First, run the development server:
+1. Derive the per-recipe target work value from `(seed, recipe id)` using the
+   same `XoroshiroRandomSource` routine TFC uses server-side.
+2. Parse each recipe's forge rules (`draw_last`, `bend_second_last`, …) into
+   structured constraints.
+3. Solve the shortest sequence of operations (light/medium/heavy hit, draw,
+   punch, bend, upset, shrink) that lands on the target while satisfying the
+   "last three moves" rule semantics used by TFC's `ForgeRule.matches`.
+
+The TFG-Modern toggle swaps in the recipe overlay produced by TFG's
+KubeJS scripts, which rewrite part recipes to use GregTech output items and
+different rule sets.
+
+## Development
+
+Install dependencies and start the dev server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open <http://localhost:3000>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project layout
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+├── page.tsx                       Server-rendered page chrome
+├── layout.tsx                     Next.js root layout
+├── globals.css                    Tailwind entry
+├── types.ts                       Shared type definitions
+├── recipes.ts                     Loads the generated anvil recipe dataset
+├── recipes-tfg.ts                 Runtime TFG-Modern recipe overlay
+├── anvil-target.ts                Deterministic target derivation (Xoroshiro)
+├── data/
+│   └── anvil-recipes.generated.json   Build-time scrape (do not edit by hand)
+├── lib/
+│   ├── moves.ts                   The 8 operations + category helpers
+│   ├── display.ts                 Name formatting, icon URLs, tier styles
+│   ├── rules.ts                   Forge rule parser + labels
+│   ├── solver.ts                  Sequence solver (prefix DP + tail DFS)
+│   └── storage.ts                 Persisted world seed / modpack hooks
+└── components/
+    ├── AnvilCalculator.tsx        Client-side state orchestrator
+    ├── Header.tsx                 Title + modpack toggle
+    ├── FilterControls.tsx         Mode / search / tier pills
+    ├── WorldSeedInput.tsx         Persisted seed field
+    ├── RecipeBrowser.tsx          Left pane: by-output / by-input list
+    ├── SolverPanel.tsx            Right pane: rules, inputs, solution
+    ├── SolutionSteps.tsx          Step card strip
+    ├── ItemIcon.tsx               Pixel sprite with 404 fallback
+    └── EmptySolverPlaceholder.tsx Empty-state for the solver pane
 
-## Learn More
+scripts/
+└── fetch-recipes.ts               Build-time serverpack → recipes scraper
+```
 
-To learn more about Next.js, take a look at the following resources:
+`page.tsx` is a pure server component. All interactive pieces live under
+`app/components/`, with `AnvilCalculator` as the single client entry point
+that owns state and wires the rest together.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Icons live in `public/icons/` (per-item pixel sprites) and
+`public/operations/` (the eight forge-operation icons).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Refreshing the recipe dataset
 
-## Deploy on Vercel
+Both recipes and item icons are scraped at build time from the published
+TerraFirmaGreg-Modern serverpack — nothing is hand-curated. To regenerate
+(after a new TFG release, or after switching the source URL in
+`scripts/fetch-recipes.ts`):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+bun run fetch-recipes
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The script:
+
+1. Downloads the serverpack zip (cached under `.cache/`).
+2. Walks every `.jar` under `mods/` and extracts every
+   `"type": "tfc:anvil"` recipe, resolving tag ingredients by merging every
+   mod's tag definitions.
+3. For every referenced item, walks its Minecraft item-model chain, reads the
+   layer texture reference, and writes the PNG to `public/icons/` under the
+   flat `<namespace>_<path>.png` naming convention the runtime expects.
+
+Output: `app/data/anvil-recipes.generated.json` and the contents of
+`public/icons/`. Both should be committed. Dynamically-textured items
+(GregTech materials, a handful of vanilla Minecraft items that live in the
+client jar) fall back to the `?` placeholder in the UI.
+
+The TFG-Modern overlay in `app/recipes-tfg.ts` is hand-ported from the
+modpack's KubeJS scripts and applied at runtime on top of the scraped base.
