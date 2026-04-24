@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Text input for the player's world seed. Accepts any string so negative or
- * out-of-range values are still typeable; parsing/validation lives in
- * `anvil-target.ts`.
+ * Compact seed input meant to sit in the header strip alongside the modpack
+ * toggle. Accepts any string so negative and out-of-range values are still
+ * typeable; parsing / validation lives in `anvil-target.ts`.
  */
 export function WorldSeedInput({
     value,
@@ -13,12 +13,12 @@ export function WorldSeedInput({
     onChange: (v: string) => void;
 }) {
     return (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-zinc-900/40 border border-zinc-800 rounded-lg px-3 py-2">
+        <div className="inline-flex items-center gap-2 bg-zinc-900/70 border border-zinc-800 rounded-full pl-3 pr-1 py-1 text-xs shrink-0 focus-within:border-amber-500/40 focus-within:ring-2 focus-within:ring-amber-500/15 transition-all">
             <label
                 htmlFor="world-seed"
-                className="text-[10px] uppercase tracking-wider text-zinc-500 sm:w-28 shrink-0"
+                className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-semibold shrink-0"
             >
-                World Seed
+                Seed
             </label>
             <input
                 id="world-seed"
@@ -28,12 +28,9 @@ export function WorldSeedInput({
                 spellCheck={false}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                placeholder="e.g. 123456789 — leave blank to enter targets manually"
-                className="flex-1 bg-zinc-950/70 border border-zinc-800 rounded-md px-2 py-1.5 text-sm font-mono placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50"
+                placeholder="paste from /seed"
+                className="bg-transparent w-[180px] sm:w-[220px] text-sm font-mono tabular-nums text-zinc-100 placeholder:text-zinc-600 focus:outline-none py-1"
             />
-            <span className="text-xs text-zinc-500">
-                Targets auto-compute from (seed, item) pair.
-            </span>
         </div>
     );
 }

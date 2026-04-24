@@ -22,6 +22,30 @@ export const CATEGORY_LABEL: Record<MoveCategory, string> = {
     shrink: "Shrink",
 };
 
+// Representative icon per move category. Used for rule displays / editors
+// where we care about the category (e.g. "a Hit at the last position") rather
+// than a specific move. The "hit" category has light/medium/heavy variants,
+// all visually similar; we use medium as the stand-in.
+export const CATEGORY_ICON: Record<MoveCategory, string> = {
+    hit: "/operations/hit medium.png",
+    draw: "/operations/draw.png",
+    punch: "/operations/punch.png",
+    bend: "/operations/bend.png",
+    upset: "/operations/upset.png",
+    shrink: "/operations/shrink.png",
+};
+
+// All six move categories, in a stable UI ordering (hits first, then deltas
+// from most negative to most positive, mirroring the in-game tool layout).
+export const MOVE_CATEGORIES: MoveCategory[] = [
+    "hit",
+    "draw",
+    "punch",
+    "bend",
+    "upset",
+    "shrink",
+];
+
 const MOVES_BY_NAME: Record<string, Move> = Object.fromEntries(
     MOVES.map((m) => [m.name, m])
 );

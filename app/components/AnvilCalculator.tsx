@@ -7,14 +7,13 @@ import { computeTfcAnvilTarget } from "../anvil-target";
 import { inputDisplayId, prettyName, recipeKey } from "../lib/display";
 import { parseRule } from "../lib/rules";
 import { solve } from "../lib/solver";
-import { useModpack, useWorldSeed } from "../lib/storage";
+import { useFavouriteRecipes, useModpack, useWorldSeed } from "../lib/storage";
 import type { Constraint, Modpack, Recipe } from "../types";
+import { CustomSolverPanel } from "./CustomSolverPanel";
 import { EmptySolverPlaceholder } from "./EmptySolverPlaceholder";
-import { FilterControls } from "./FilterControls";
 import { Header } from "./Header";
 import { RecipeBrowser, type BrowserMode } from "./RecipeBrowser";
 import { SolverPanel } from "./SolverPanel";
-import { WorldSeedInput } from "./WorldSeedInput";
 
 // Base recipes from the scraped dataset + the TFG-Modern overlay. Both lists
 // are derived once at module load so toggling between modpacks is free.
@@ -32,21 +31,35 @@ type TargetSelection =
 /**
  * Stateful orchestrator for the entire calculator UI. Owns selection / filter
  * state, derives the filtered recipe list and the deterministic target, and
- * wires everything into the RecipeBrowser + SolverPanel leaf components.
+ * wires everything into the RecipeBrowser + {Solver,CustomSolver}Panel leaf
+ * components.
  */
 export function AnvilCalculator() {
+    // Browser state
     const [mode, setMode] = useState<BrowserMode>("output");
     const [query, setQuery] = useState("");
     const [tierFilter, setTierFilter] = useState<number | null>(null);
     const [selectedInput, setSelectedInput] = useState<string | null>(null);
+
+    // Selection — either a recipe is open, or the custom-setup panel is open,
+    // or neither (placeholder). Both kept as separate state so the user's
+    // pinned recipe doesn't vanish when they peek at the custom panel.
     const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
+    const [customMode, setCustomMode] = useState(false);
+
+    // Solver inputs
     const [start, setStart] = useState(0);
     const [targetSelection, setTargetSelection] = useState<TargetSelection>({
         kind: "auto",
     });
 
+    // Custom-mode inputs (independent from recipe-mode target/rules)
+    const [customConstraints, setCustomConstraints] = useState<Constraint[]>([]);
+    const [customTarget, setCustomTarget] = useState(70);
+
     const [worldSeed, setWorldSeed] = useWorldSeed();
     const [modpack, setModpack] = useModpack();
+    const { favouriteIds, isFavourite, toggleFavourite } = useFavouriteRecipes();
 
     const activeRecipes = RECIPES_BY_MODPACK[modpack];
 
@@ -73,7 +86,7 @@ export function AnvilCalculator() {
         [selectedRecipe, activeRecipes]
     );
 
-    const constraints = useMemo<Constraint[]>(() => {
+    const recipeConstraints = useMemo<Constraint[]>(() => {
         if (!recipe) return [];
         return recipe.rules
             .map(parseRule)
@@ -105,21 +118,42 @@ export function AnvilCalculator() {
             ? targetSelection.value
             : null;
 
-    const target = manualTargetForThisRecipe ?? autoTarget ?? 0;
+    const recipeTarget = manualTargetForThisRecipe ?? autoTarget ?? 0;
     const targetOverridden =
         manualTargetForThisRecipe !== null &&
         autoTarget !== null &&
         manualTargetForThisRecipe !== autoTarget;
 
+    // Solve whichever panel is currently active. Custom mode always solves
+    // against `customConstraints` + `customTarget`; recipe mode against the
+    // parsed recipe rules + the effective target.
     const solution = useMemo(() => {
-        if (!recipe) return null;
-        return solve(start, target, constraints);
-    }, [recipe, start, target, constraints]);
+        if (customMode) return solve(start, customTarget, customConstraints);
+        if (recipe) return solve(start, recipeTarget, recipeConstraints);
+        return null;
+    }, [
+        customMode,
+        recipe,
+        start,
+        customTarget,
+        customConstraints,
+        recipeTarget,
+        recipeConstraints,
+    ]);
 
     const tiers = useMemo(
         () => Array.from(new Set(activeRecipes.map((r) => r.tier))).sort((a, b) => a - b),
         [activeRecipes]
     );
+
+    const handleSelectRecipe = (key: string) => {
+        setCustomMode(false);
+        setSelectedRecipe(key);
+    };
+
+    const handleSelectCustom = () => {
+        setCustomMode(true);
+    };
 
     return (
         <>
@@ -127,44 +161,54 @@ export function AnvilCalculator() {
                 modpack={modpack}
                 onModpackChange={setModpack}
                 recipeCount={activeRecipes.length}
+                worldSeed={worldSeed}
+                onWorldSeedChange={setWorldSeed}
             />
-
-            <FilterControls
-                mode={mode}
-                onModeChange={(next) => {
-                    setMode(next);
-                    if (next === "output") setSelectedInput(null);
-                }}
-                query={query}
-                onQueryChange={setQuery}
-                tiers={tiers}
-                tierFilter={tierFilter}
-                onTierChange={setTierFilter}
-            />
-
-            <WorldSeedInput value={worldSeed} onChange={setWorldSeed} />
 
             <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6">
                 <RecipeBrowser
                     mode={mode}
+                    onModeChange={(next) => {
+                        setMode(next);
+                        if (next === "output") setSelectedInput(null);
+                    }}
+                    query={query}
+                    onQueryChange={setQuery}
+                    tiers={tiers}
+                    tierFilter={tierFilter}
+                    onTierChange={setTierFilter}
                     filteredRecipes={filteredRecipes}
                     totalRecipes={activeRecipes.length}
-                    selectedRecipe={selectedRecipe}
-                    onSelectRecipe={setSelectedRecipe}
+                    selectedRecipe={customMode ? null : selectedRecipe}
+                    onSelectRecipe={handleSelectRecipe}
                     selectedInput={selectedInput}
                     onSelectInput={setSelectedInput}
+                    customSelected={customMode}
+                    onSelectCustom={handleSelectCustom}
+                    favouriteIds={favouriteIds}
+                    onToggleFavourite={toggleFavourite}
                 />
 
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-                    {!recipe ? (
-                        <EmptySolverPlaceholder />
+                <div className="lg:sticky lg:top-6 lg:self-start rounded-2xl border border-zinc-800/70 bg-zinc-900/40 ring-1 ring-white/[0.03] shadow-2xl shadow-black/40 overflow-hidden">
+                    {customMode ? (
+                        <CustomSolverPanel
+                            constraints={customConstraints}
+                            onConstraintsChange={setCustomConstraints}
+                            start={start}
+                            onStartChange={setStart}
+                            target={customTarget}
+                            onTargetChange={setCustomTarget}
+                            solution={solution}
+                        />
+                    ) : !recipe ? (
+                        <EmptySolverPlaceholder onOpenCustom={handleSelectCustom} />
                     ) : (
                         <SolverPanel
                             recipe={recipe}
-                            constraints={constraints}
+                            constraints={recipeConstraints}
                             solution={solution}
                             start={start}
-                            target={target}
+                            target={recipeTarget}
                             autoTarget={autoTarget}
                             targetOverridden={targetOverridden}
                             onStartChange={setStart}
@@ -178,6 +222,8 @@ export function AnvilCalculator() {
                                 }
                             }}
                             onResetTarget={() => setTargetSelection({ kind: "auto" })}
+                            isFavourite={isFavourite(recipe.id)}
+                            onToggleFavourite={() => toggleFavourite(recipe.id)}
                         />
                     )}
                 </div>

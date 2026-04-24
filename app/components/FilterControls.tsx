@@ -3,9 +3,9 @@
 import type { BrowserMode } from "./RecipeBrowser";
 
 /**
- * Row above the recipe browser: mode toggle (by output / by input), free-text
- * search, and tier pills. All state lives in the parent; this component is a
- * pure presentational control surface.
+ * Recipe-browser toolbar: mode toggle on the first row, free-text search on
+ * the second, and tier chips on the third. Folded inside the browser card —
+ * every control here narrows the list below.
  */
 export function FilterControls({
     mode,
@@ -15,6 +15,7 @@ export function FilterControls({
     tiers,
     tierFilter,
     onTierChange,
+    counterLabel,
 }: {
     mode: BrowserMode;
     onModeChange: (m: BrowserMode) => void;
@@ -23,29 +24,38 @@ export function FilterControls({
     tiers: number[];
     tierFilter: number | null;
     onTierChange: (t: number | null) => void;
+    counterLabel: string;
 }) {
     return (
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex bg-zinc-900 border border-zinc-800 rounded-lg p-1 w-fit">
-                <ModeButton
-                    active={mode === "output"}
-                    onClick={() => onModeChange("output")}
-                    label="By Output"
-                />
-                <ModeButton
-                    active={mode === "input"}
-                    onClick={() => onModeChange("input")}
-                    label="By Input"
-                />
+        <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+                <div className="inline-flex items-center bg-zinc-950/60 border border-zinc-800 rounded-full p-0.5">
+                    <ModeButton
+                        active={mode === "output"}
+                        onClick={() => onModeChange("output")}
+                        label="By Metal"
+                    />
+                    <ModeButton
+                        active={mode === "input"}
+                        onClick={() => onModeChange("input")}
+                        label="By Input"
+                    />
+                </div>
+                <span className="text-[11px] font-mono tabular-nums text-zinc-500">
+                    {counterLabel}
+                </span>
             </div>
 
-            <input
-                type="search"
-                placeholder="Search recipes, materials, items…"
-                value={query}
-                onChange={(e) => onQueryChange(e.target.value)}
-                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50"
-            />
+            <div className="relative">
+                <SearchIcon />
+                <input
+                    type="search"
+                    placeholder="Search recipes, materials, items…"
+                    value={query}
+                    onChange={(e) => onQueryChange(e.target.value)}
+                    className="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg pl-9 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/40 focus:ring-2 focus:ring-amber-500/15 transition-colors"
+                />
+            </div>
 
             <div className="flex gap-1 flex-wrap">
                 <TierPill
@@ -78,9 +88,9 @@ function ModeButton({
     return (
         <button
             onClick={onClick}
-            className={`px-3 py-1.5 text-sm rounded-md transition ${
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 active
-                    ? "bg-zinc-700 text-white shadow"
+                    ? "bg-zinc-800 text-zinc-100"
                     : "text-zinc-400 hover:text-zinc-200"
             }`}
         >
@@ -101,13 +111,31 @@ function TierPill({
     return (
         <button
             onClick={onClick}
-            className={`text-xs px-2 py-1 rounded-md border transition ${
+            className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-medium ${
                 active
-                    ? "bg-zinc-200 text-zinc-900 border-zinc-200"
-                    : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700"
+                    ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+                    : "bg-zinc-950/50 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200"
             }`}
         >
             {label}
         </button>
+    );
+}
+
+function SearchIcon() {
+    return (
+        <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+        >
+            <circle cx="9" cy="9" r="6" />
+            <path d="m14 14 4 4" />
+        </svg>
     );
 }

@@ -37,3 +37,55 @@ export function ruleLabel(c: Constraint): string {
     if (c.kind === "notLast") return `${name} — not last`;
     return `${name} — any`;
 }
+
+// Visual decomposition of a constraint list: the three position slots
+// (3rd last / 2nd last / last) plus the two flavours of existential rule.
+// Drives both the read-only <RuleDisplay /> and the editable <RuleEditor />.
+export type GroupedConstraints = {
+    position: (MoveCategory | null)[];
+    anyOfThree: MoveCategory[];
+    notLast: MoveCategory[];
+};
+
+export function emptyGroupedConstraints(): GroupedConstraints {
+    return { position: [null, null, null], anyOfThree: [], notLast: [] };
+}
+
+export function groupConstraints(constraints: Constraint[]): GroupedConstraints {
+    const grouped = emptyGroupedConstraints();
+    for (const c of constraints) {
+        if (c.kind === "position") {
+            grouped.position[3 - c.positionFromEnd] = c.category;
+        } else if (c.kind === "any") {
+            if (!grouped.anyOfThree.includes(c.category)) {
+                grouped.anyOfThree.push(c.category);
+            }
+        } else {
+            if (!grouped.notLast.includes(c.category)) {
+                grouped.notLast.push(c.category);
+            }
+        }
+    }
+    return grouped;
+}
+
+export function buildConstraints(grouped: GroupedConstraints): Constraint[] {
+    const result: Constraint[] = [];
+    for (let i = 0; i < 3; i++) {
+        const cat = grouped.position[i];
+        if (cat) {
+            result.push({
+                kind: "position",
+                category: cat,
+                positionFromEnd: 3 - i,
+            });
+        }
+    }
+    for (const cat of grouped.anyOfThree) {
+        result.push({ kind: "any", category: cat });
+    }
+    for (const cat of grouped.notLast) {
+        result.push({ kind: "notLast", category: cat });
+    }
+    return result;
+}
